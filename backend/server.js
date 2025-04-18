@@ -1,57 +1,78 @@
-const express = require("express");
-const bcrypt = require("bcrypt");
-const fs = require("fs");
-const {v4:uuid4}= require("uuid");
+const express = require('express');
+const fs = require('fs');
+const bcrypt = require('bcrypt');
+const { v4: uuidv4 } = require('uuid');
 
 const app = express();
-const port = 3000;
+const PORT = 3000;
+const USERS_FILE = 'users.json';
+
+
 app.use(express.json());
-const readUsers =()=>{
-      const data = fs.readFileSync("users.json","utf8");
-      return JSON.parse(data);
-      
-};
 
-const writeUser = (users) =>{
-    fs.writeFileSync("users.json",JSON.stringify(users,null,2));
 
-};
+function readUsers() {
+  if (!fs.existsSync(USERS_FILE)) {
+    fs.writeFileSync(USERS_FILE, JSON.stringify([]));
+  }
+  const data = fs.readFileSync(USERS_FILE);
+  return JSON.parse(data);
+}
 
-app.post("/register",async(req,res)=>{
-      const {username,email,password}=req.body;
-      if(!username || !email || !password){
-            return res.status(400).json({message:"all filed requre"});
-      }
-      const emailRegex = `/^[^\s@]+@[^\^s@]+\[^\s@]+$`;
-      if(!emailRegex.test(email)){
-            return res.status(400).json({message:"invalid email"})
-      }
-      if(!password.length<6){
-            return res.status(400).json({message:"password must be 6 character"})
-      }
 
-      const users = readUsers();
-      const emailExists = users.some(user=>user.email === email);
-      if(emailExists){
-            return res.status(409).json({message:"email alerdy registerd"})
-      }
-      const hashedPassword = await bcrypt.hash(password,10);
-      const newUser= {
-            id:uuid4(),
-            username,
-            email,
-            password:hashedPassword
-      }
-      users.push(newUser);
-      writeUser(users);
+function writeUsers(users) {
+  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
+}
 
-      res.status(201).json({
-            message:"user registerd successfully",
-            userId:newUser.id
-      });
 
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+// POST /register
+app.post('/register', async (req, res) => {
+  const { username, email, password } = req.body;
+
+ 
+  if (!username || !email || !password) {
+    return res.status(400).json({ error: 'All fields are required' });
+  }
+
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ error: 'Invalid email format' });
+  }
+
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  }
+
+  const users = readUsers();
+
+  const existingUser = users.find(user => user.email === email);
+  if (existingUser) {
+    return res.status(409).json({ error: 'Email already registered' });
+  }
+
+  // Hash password
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  const newUser = {
+    id: uuidv4(),
+    username,
+    email,
+    password: hashedPassword
+  };
+
+  users.push(newUser);
+  writeUsers(users);
+
+  res.status(201).json({
+    message: 'User registered successfully',
+    userId: newUser.id
+  });
 });
 
-app.listen(port,()=>{
-      console.log("server is running 3000 port")
-})
+// Start server
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});
